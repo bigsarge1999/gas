@@ -1,0 +1,366 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fuel Mileage Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Firebase App and Database SDKs -->
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+
+    <!-- TOP NAVIGATION BAR -->
+    <nav class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <h1 class="text-xl font-bold tracking-wider text-amber-500 flex items-center gap-2">
+                ⛽ FUEL TRACKER
+            </h1>
+            <div id="connection-status" class="text-xs bg-red-950 text-red-400 px-3 py-1 rounded-full border border-red-800">
+                Connecting...
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTAINER -->
+    <main class="max-w-7xl mx-auto p-4 space-y-6">
+
+        <!-- DASHBOARD METRICS SUMMARY -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Avg Fuel Economy</p>
+                <p id="stat-avg-mpg" class="text-2xl md:text-3xl font-black text-amber-500 mt-1">0.00 <span class="text-sm font-normal text-gray-400">MPG</span></p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Cost Per Mile</p>
+                <p id="stat-cost-per-mile" class="text-2xl md:text-3xl font-black text-emerald-500 mt-1">$0.00</p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Distance</p>
+                <p id="stat-total-miles" class="text-2xl md:text-3xl font-black text-blue-400 mt-1">0 <span class="text-sm font-normal text-gray-400">mi</span></p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Fuel Spent</p>
+                <p id="stat-total-cost" class="text-2xl md:text-3xl font-black text-purple-400 mt-1">$0.00</p>
+            </div>
+        </section>
+
+        <!-- INPUT FORM & LIVE CALCULATOR -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Log Entry Form -->
+            <div class="bg-gray-800 border border-gray-700 p-5 rounded-xl shadow-md lg:col-span-1 h-fit">
+                <h2 class="text-lg font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2">Log New Fill-Up</h2>
+                <form id="fuel-form" class="space-y-4">
+                    
+                    <div>
+                        <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Date</label>
+                        <input type="date" id="input-date" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-gray-100 focus:outline-none focus:border-amber-500">
+                    </div>
+
+                    <!-- Distance Calculation Toggle Box -->
+                    <div class="bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-3">
+                        <label class="block text-xs font-semibold text-gray-400 uppercase">Distance Tracking Mode</label>
+                        <div class="flex gap-4 text-sm">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="dist-mode" value="odometer" checked class="text-amber-500 focus:ring-0"> Odometer
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="dist-mode" value="trip" class="text-amber-500 focus:ring-0"> Trip Meter
+                            </label>
+                        </div>
+                        
+                        <div id="box-odometer">
+                            <label class="block text-xs text-gray-400 mb-1">Current Odometer Reading</label>
+                            <input type="number" step="1" id="input-odometer" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-gray-100 focus:outline-none focus:border-amber-500" placeholder="e.g., 145000">
+                        </div>
+                        <div id="box-trip" class="hidden">
+                            <label class="block text-xs text-gray-400 mb-1">Trip Miles Elapsed</label>
+                            <input type="number" step="0.1" id="input-trip" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-gray-100 focus:outline-none focus:border-amber-500" placeholder="e.g., 420.5">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Gallons pumped</label>
+                            <input type="number" step="0.001" id="input-gallons" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-gray-100 focus:outline-none focus:border-amber-500" placeholder="0.000">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Total Invoice ($)</label>
+                            <input type="number" step="0.01" id="input-cost" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-gray-100 focus:outline-none focus:border-amber-500" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <!-- Dynamic Real-time Calculations Output Box -->
+                    <div class="bg-amber-950/40 border border-amber-900/60 rounded-lg p-3 text-sm text-amber-300 space-y-1">
+                        <div class="flex justify-between"><span>Calculated MPG:</span><span id="live-mpg" class="font-bold">--</span></div>
+                        <div class="flex justify-between"><span>Cost Per Gallon:</span><span id="live-cpg" class="font-bold">--</span></div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-gray-950 font-bold uppercase tracking-wider py-3 px-4 rounded-lg transition duration-200 shadow-md">
+                        Commit Entry to Firebase
+                    </button>
+                </form>
+            </div>
+
+            <!-- Historical Data Log Table -->
+            <div class="bg-gray-800 border border-gray-700 p-5 rounded-xl shadow-md lg:col-span-2 flex flex-col">
+                <h2 class="text-lg font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2">Historical Fill Logs</h2>
+                <div class="overflow-x-auto flex-grow">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead>
+                            <tr class="border-b border-gray-700 text-gray-400 uppercase text-xs tracking-wider">
+                                <th class="py-3 px-2">Date</th>
+                                <th class="py-3 px-2">Odometer</th>
+                                <th class="py-3 px-2">Trip Mi</th>
+                                <th class="py-3 px-2">Gallons</th>
+                                <th class="py-3 px-2">$/Gal</th>
+                                <th class="py-3 px-2 text-amber-400">MPG</th>
+                                <th class="py-3 px-2 text-right">Actions</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-table-body" class="divide-y divide-gray-700/60">
+                            <!-- Injected Dynamically -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <!-- CORE LOGIC & CORE ARCHITECTURE INTERACTION script -->
+    <script>
+        // ----------------------------------------------------
+        // FIREBASE PROJECT CONFIGURATION
+        // ----------------------------------------------------
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        // Initialize Firebase
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const logsRef = db.ref('fuel_logs');
+
+        // Global Application State array
+        let fuelLogsData = [];
+
+        // Set default date picker value to today
+        document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+
+        // Handle Tracking Mode Layout Toggle
+        const radOdo = document.querySelector('input[value="odometer"]');
+        const radTrip = document.querySelector('input[value="trip"]');
+        const boxOdo = document.getElementById('box-odometer');
+        const boxTrip = document.getElementById('box-trip');
+
+        function toggleInputMode() {
+            if (radOdo.checked) {
+                boxOdo.classList.remove('hidden');
+                boxTrip.classList.add('hidden');
+                document.getElementById('input-trip').value = '';
+                document.getElementById('input-odometer').setAttribute('required', 'true');
+                document.getElementById('input-trip').removeAttribute('required');
+            } else {
+                boxOdo.classList.add('hidden');
+                boxTrip.classList.remove('hidden');
+                document.getElementById('input-odometer').value = '';
+                document.getElementById('input-trip').setAttribute('required', 'true');
+                document.getElementById('input-odometer').removeAttribute('required');
+            }
+            calculateLivePreview();
+        }
+        radOdo.addEventListener('change', toggleInputMode);
+        radTrip.addEventListener('change', toggleInputMode);
+        toggleInputMode(); // Run initialization rule
+
+        // Monitor Firebase Connection Status
+        db.ref('.info/connected').on('value', (snap) => {
+            const statusDiv = document.getElementById('connection-status');
+            if (snap.val() === true) {
+                statusDiv.innerText = "Firebase Live";
+                statusDiv.className = "text-xs bg-emerald-950 text-emerald-400 px-3 py-1 rounded-full border border-emerald-800";
+            } else {
+                statusDiv.innerText = "Offline / Syncing";
+                statusDiv.className = "text-xs bg-red-950 text-red-400 px-3 py-1 rounded-full border border-red-800";
+            }
+        });
+
+        // Live Real-Time Form Calculations Listener
+        const inputGallons = document.getElementById('input-gallons');
+        const inputCost = document.getElementById('input-cost');
+        const inputOdometer = document.getElementById('input-odometer');
+        const inputTrip = document.getElementById('input-trip');
+
+        function calculateLivePreview() {
+            const gals = parseFloat(inputGallons.value) || 0;
+            const cost = parseFloat(inputCost.value) || 0;
+            
+            // Calculate Cost Per Gallon Preview
+            if(gals > 0 && cost > 0) {
+                document.getElementById('live-cpg').innerText = `$${(cost / gals).toFixed(3)}`;
+            } else {
+                document.getElementById('live-cpg').innerText = '--';
+            }
+
+            // Estimate MPG Preview if trip meter mode is selected
+            if (radTrip.checked && gals > 0) {
+                const tripMiles = parseFloat(inputTrip.value) || 0;
+                if(tripMiles > 0) {
+                    document.getElementById('live-mpg').innerText = `${(tripMiles / gals).toFixed(2)} MPG`;
+                    return;
+                }
+            }
+            // Fallback for Odometer mode live estimation (relies on last records differential)
+            if (radOdo.checked && gals > 0 && fuelLogsData.length > 0) {
+                const curOdo = parseFloat(inputOdometer.value) || 0;
+                const sorted = [...fuelLogsData].sort((a,b) => new Date(a.date) - new Date(b.date));
+                const lastLog = sorted[sorted.length - 1];
+                if (lastLog && lastLog.odometer && curOdo > lastLog.odometer) {
+                    const diff = curOdo - lastLog.odometer;
+                    document.getElementById('live-mpg').innerText = `${(diff / gals).toFixed(2)} MPG (Est)`;
+                    return;
+                }
+            }
+            document.getElementById('live-mpg').innerText = '--';
+        }
+
+        [inputGallons, inputCost, inputOdometer, inputTrip].forEach(el => el.addEventListener('input', calculateLivePreview));
+
+        // Submit New Record to Firebase Engine
+        document.getElementById('fuel-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            
+            const date = document.getElementById('input-date').value;
+            const gallons = parseFloat(inputGallons.value);
+            const totalCost = parseFloat(inputCost.value);
+            const trackingMode = document.querySelector('input[name="dist-mode"]:checked').value;
+            
+            let odometer = trackingMode === 'odometer' ? parseFloat(inputOdometer.value) : null;
+            let tripMiles = trackingMode === 'trip' ? parseFloat(inputTrip.value) : null;
+
+            const newLog = {
+                date: date,
+                gallons: gallons,
+                totalCost: totalCost,
+                trackingMode: trackingMode,
+                odometer: odometer,
+                tripMiles: tripMiles,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            };
+
+            logsRef.push(newLog)
+                .then(() => {
+                    // Reset inputs except standard configurations
+                    inputGallons.value = '';
+                    inputCost.value = '';
+                    inputOdometer.value = '';
+                    inputTrip.value = '';
+                    calculateLivePreview();
+                })
+                .catch(err => console.error("Firebase Push Error: ", err));
+        });
+
+        // Delete Entry Execution Hook
+        window.deleteEntry = function(key) {
+            if(confirm("Confirm deletion of this historical record entry?")) {
+                db.ref(`fuel_logs/${key}`).remove();
+            }
+        };
+
+        // Reactive Synchronization Pipeline Engine
+        logsRef.on('value', (snapshot) => {
+            const data = snapshot.val();
+            fuelLogsData = [];
+            
+            if (data) {
+                for (let key in data) {
+                    fuelLogsData.push({ key, ...data[key] });
+                }
+            }
+            
+            // Sort Chronologically for correct interval calculations
+            fuelLogsData.sort((a, b) => new Date(a.date) - new Date(b.date));
+            
+            processAndRenderLogs();
+        });
+
+        // Data Process Calculation & Rendering Pipeline
+        function processAndRenderLogs() {
+            const tableBody = document.getElementById('log-table-body');
+            tableBody.innerHTML = '';
+
+            let totalCalculatedMiles = 0;
+            let totalAggregatedFuelSpent = 0;
+            let totalAggregatedGallonsPumped = 0;
+
+            // Process list for viewing (reversed chronological order for list visibility)
+            const displayArray = [...fuelLogsData].reverse();
+
+            fuelLogsData.forEach((log, index) => {
+                let currentSegmentMiles = 0;
+
+                if (log.trackingMode === 'trip' || log.tripMiles > 0) {
+                    currentSegmentMiles = log.tripMiles;
+                } else if (log.trackingMode === 'odometer' && index > 0) {
+                    const prevLog = fuelLogsData[index - 1];
+                    if (prevLog.odometer && log.odometer > prevLog.odometer) {
+                        currentSegmentMiles = log.odometer - prevLog.odometer;
+                    }
+                }
+
+                // Map evaluated segment distance metrics back to root list items reference matching keys
+                log.calculatedSegmentMiles = currentSegmentMiles;
+                log.calculatedMpg = (currentSegmentMiles > 0 && log.gallons > 0) ? (currentSegmentMiles / log.gallons) : 0;
+                log.costPerGallon = log.gallons > 0 ? (log.totalCost / log.gallons) : 0;
+
+                // Accumulate global structural summaries if valid calculation points exist
+                if (currentSegmentMiles > 0) {
+                    totalCalculatedMiles += currentSegmentMiles;
+                    totalAggregatedFuelSpent += log.totalCost;
+                    totalAggregatedGallonsPumped += log.gallons;
+                }
+            });
+
+            // Update UI Summary Elements
+            const overallMpg = totalAggregatedGallonsPumped > 0 ? (totalCalculatedMiles / totalAggregatedGallonsPumped) : 0;
+            const overallCostPerMile = totalCalculatedMiles > 0 ? (totalAggregatedFuelSpent / totalCalculatedMiles) : 0;
+
+            document.getElementById('stat-avg-mpg').innerHTML = `${overallMpg.toFixed(2)} <span class="text-sm font-normal text-gray-400">MPG</span>`;
+            document.getElementById('stat-cost-per-mile').innerText = `$${overallCostPerMile.toFixed(2)}`;
+            document.getElementById('stat-total-miles').innerHTML = `${totalCalculatedMiles.toLocaleString()} <span class="text-sm font-normal text-gray-400">mi</span>`;
+            document.getElementById('stat-total-cost').innerText = `$${totalAggregatedFuelSpent.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+            // Render Rows
+            displayArray.forEach((log) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-700/30 transition border-b border-gray-800";
+                
+                const formattedMpg = log.calculatedMpg > 0 ? `${log.calculatedMpg.toFixed(2)}` : `<span class="text-gray-600">--</span>`;
+                const displayDist = log.calculatedSegmentMiles > 0 ? `${log.calculatedSegmentMiles.toFixed(1)}` : `<span class="text-gray-600">--</span>`;
+                const displayOdo = log.odometer ? log.odometer.toLocaleString() : `<span class="text-gray-600">--</span>`;
+
+                tr.innerHTML = `
+                    <td class="py-3 px-2 font-mono text-xs">${log.date}</td>
+                    <td class="py-3 px-2 font-mono text-xs text-gray-300">${displayOdo}</td>
+                    <td class="py-3 px-2 font-mono text-xs text-blue-400">${displayDist}</td>
+                    <td class="py-3 px-2 font-mono text-xs text-purple-300">${log.gallons.toFixed(3)}</td>
+                    <td class="py-3 px-2 font-mono text-xs text-emerald-400">$${log.costPerGallon.toFixed(3)}</td>
+                    <td class="py-3 px-2 font-mono font-bold text-sm text-amber-400">${formattedMpg}</td>
+                    <td class="py-3 px-2 text-right">
+                        <button onclick="deleteEntry('${log.key}')" class="text-red-400 hover:text-red-500 font-semibold text-xs bg-red-950/40 px-2 py-1 rounded border border-red-900/50 hover:border-red-700 transition">Delete</button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>

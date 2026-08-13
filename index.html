@@ -1,0 +1,456 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Multi-Vehicle Fleet Fuel Tracker</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+</head>
+<body class="bg-gray-900 text-gray-100 min-h-screen font-sans">
+
+    <!-- TOP NAVIGATION BAR -->
+    <nav class="bg-gray-800 border-b border-gray-700 p-4 sticky top-0 z-50 shadow-md">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row justify-between items-center gap-4">
+            <h1 class="text-xl font-bold tracking-wider text-amber-500 flex items-center gap-2">
+                Location Fleet Fuel Tracker
+            </h1>
+            
+            <!-- GLOBAL VEHICLE SELECTOR INTERFACE -->
+            <div class="flex items-center gap-3">
+                <label class="text-xs font-semibold text-gray-400 uppercase">Active Profile:</label>
+                <select id="global-vehicle-select" class="bg-gray-900 border border-gray-700 text-amber-400 font-bold px-3 py-2 rounded-lg focus:outline-none focus:border-amber-500">
+                    <!-- Loaded dynamically from Firebase -->
+                </select>
+                <div id="connection-status" class="text-xs bg-red-950 text-red-400 px-3 py-1 rounded-full border border-red-800">
+                    Connecting...
+                </div>
+            </div>
+        </div>
+    </nav>
+
+    <!-- MAIN CONTAINER -->
+    <main class="max-w-7xl mx-auto p-4 space-y-6">
+
+        <!-- SETUP DRAWER: QUICK ADD VEHICLE -->
+        <section class="bg-gray-800/50 border border-gray-700/60 p-4 rounded-xl">
+            <details class="group">
+                <summary class="list-none flex justify-between items-center cursor-pointer font-semibold text-sm text-gray-400 hover:text-gray-200">
+                    <span>➕ Add New Vehicle Profile to Fleet</span>
+                    <span class="group-open:rotate-180 transition-transform">▼</span>
+                </summary>
+                <form id="vehicle-add-form" class="grid grid-cols-1 sm:grid-cols-3 gap-4 mt-4 pt-4 border-t border-gray-700/50">
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Vehicle Nickname / ID</label>
+                        <input type="text" id="new-veh-name" required placeholder="e.g., '24 Heavy Hauler" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:border-amber-500">
+                    </div>
+                    <div>
+                        <label class="block text-xs text-gray-400 mb-1">Classification Type</label>
+                        <select id="new-veh-type" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:border-amber-500">
+                            <option value="Commercial Truck">Commercial Truck</option>
+                            <option value="Pickup Truck">Pickup Truck</option>
+                            <option value="Motorcycle">Motorcycle</option>
+                            <option value="Equipment/Tractor">Equipment / Tractor</option>
+                        </select>
+                    </div>
+                    <div class="flex items-end">
+                        <button type="submit" class="w-full bg-gray-700 hover:bg-gray-600 text-amber-400 font-bold text-sm py-2 px-4 rounded-lg transition">
+                            Save Profile
+                        </button>
+                    </div>
+                </form>
+            </details>
+        </section>
+
+        <!-- DASHBOARD METRICS SUMMARY -->
+        <section class="grid grid-cols-2 md:grid-cols-4 gap-4">
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Profile Avg Economy</p>
+                <p id="stat-avg-mpg" class="text-2xl md:text-3xl font-black text-amber-500 mt-1">0.00 <span class="text-sm font-normal text-gray-400">MPG</span></p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Cost Per Mile</p>
+                <p id="stat-cost-per-mile" class="text-2xl md:text-3xl font-black text-emerald-500 mt-1">$0.00</p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Profile Miles</p>
+                <p id="stat-total-miles" class="text-2xl md:text-3xl font-black text-blue-400 mt-1">0 <span class="text-sm font-normal text-gray-400">mi</span></p>
+            </div>
+            <div class="bg-gray-800 border border-gray-700 p-4 rounded-xl shadow-sm">
+                <p class="text-xs text-gray-400 font-medium uppercase tracking-wider">Total Capital Logged</p>
+                <p id="stat-total-cost" class="text-2xl md:text-3xl font-black text-purple-400 mt-1">$0.00</p>
+            </div>
+        </section>
+
+        <!-- INPUT FORM & LOG TABLE -->
+        <section class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            <!-- Log Entry Form -->
+            <div class="bg-gray-800 border border-gray-700 p-5 rounded-xl shadow-md lg:col-span-1 h-fit">
+                <h2 class="text-lg font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2 flex justify-between items-center">
+                    <span>Log New Fill-Up</span>
+                    <span id="form-active-title" class="text-xs font-mono text-amber-500 bg-amber-950/60 border border-amber-900 px-2 py-0.5 rounded">--</span>
+                </h2>
+                <form id="fuel-form" class="space-y-4">
+                    
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Date</label>
+                            <input type="date" id="input-date" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-gray-100 focus:outline-none">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Commodity Type</label>
+                            <select id="input-fuel-type" class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:border-amber-500">
+                                <option value="Diesel">Diesel</option>
+                                <option value="Regular Unleaded">Regular Unleaded</option>
+                                <option value="Premium Unleaded">Premium Unleaded</option>
+                                <option value="DEF Fluid">DEF Fluid</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <!-- Distance Mode Selection -->
+                    <div class="bg-gray-900 p-3 rounded-lg border border-gray-700 space-y-3">
+                        <label class="block text-xs font-semibold text-gray-400 uppercase">Distance Tracking Mode</label>
+                        <div class="flex gap-4 text-xs">
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="dist-mode" value="odometer" checked class="text-amber-500"> Odometer
+                            </label>
+                            <label class="flex items-center gap-2 cursor-pointer">
+                                <input type="radio" name="dist-mode" value="trip" class="text-amber-500"> Trip Meter
+                            </label>
+                        </div>
+                        
+                        <div id="box-odometer">
+                            <label class="block text-xs text-gray-400 mb-1">Current Odometer Reading</label>
+                            <input type="number" step="1" id="input-odometer" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:border-amber-500">
+                        </div>
+                        <div id="box-trip" class="hidden">
+                            <label class="block text-xs text-gray-400 mb-1">Trip Miles Elapsed</label>
+                            <input type="number" step="0.1" id="input-trip" class="w-full bg-gray-800 border border-gray-700 rounded-lg p-2 text-sm text-gray-100 focus:outline-none focus:border-amber-500">
+                        </div>
+                    </div>
+
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Total Volume (Gals)</label>
+                            <input type="number" step="0.001" id="input-gallons" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-gray-100 focus:outline-none focus:border-amber-500" placeholder="0.000">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-gray-400 uppercase mb-1">Total Cost ($)</label>
+                            <input type="number" step="0.01" id="input-cost" required class="w-full bg-gray-900 border border-gray-700 rounded-lg p-2.5 text-gray-100 focus:outline-none focus:border-amber-500" placeholder="0.00">
+                        </div>
+                    </div>
+
+                    <div class="bg-amber-950/40 border border-amber-900/60 rounded-lg p-3 text-xs text-amber-300 space-y-1">
+                        <div class="flex justify-between"><span>Calculated Seg. Economy:</span><span id="live-mpg" class="font-bold">--</span></div>
+                        <div class="flex justify-between"><span>Price Point Per Gal:</span><span id="live-cpg" class="font-bold">--</span></div>
+                    </div>
+
+                    <button type="submit" class="w-full bg-amber-500 hover:bg-amber-600 text-gray-950 font-bold uppercase tracking-wider py-3 px-4 rounded-lg transition duration-200">
+                        Commit Log Entry
+                    </button>
+                </form>
+            </div>
+
+            <!-- Historical Log Table View -->
+            <div class="bg-gray-800 border border-gray-700 p-5 rounded-xl shadow-md lg:col-span-2 flex flex-col">
+                <h2 class="text-lg font-bold text-gray-200 mb-4 border-b border-gray-700 pb-2">Historical Logs Table</h2>
+                <div class="overflow-x-auto flex-grow">
+                    <table class="w-full text-left text-sm border-collapse">
+                        <thead>
+                            <tr class="border-b border-gray-700 text-gray-400 uppercase text-xs tracking-wider">
+                                <th class="py-3 px-2">Date</th>
+                                <th class="py-3 px-2">Type</th>
+                                <th class="py-3 px-2">Odometer</th>
+                                <th class="py-3 px-2">Segment Mi</th>
+                                <th class="py-3 px-2">Volume</th>
+                                <th class="py-3 px-2">Cost/Gal</th>
+                                <th class="py-3 px-2 text-amber-400">MPG</th>
+                                <th class="py-3 px-2 text-right">Action</th>
+                            </tr>
+                        </thead>
+                        <tbody id="log-table-body" class="divide-y divide-gray-700/60">
+                            <!-- Populated Realtime -->
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </section>
+    </main>
+
+    <script>
+        // ----------------------------------------------------
+        // INITIALIZE CONFIGURATION AS USUAL
+        // ----------------------------------------------------
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            databaseURL: "https://YOUR_PROJECT_ID-default-rtdb.firebaseio.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        // Application Internal Selection References
+        let activeVehicleKey = "";
+        let fuelLogsData = [];
+        let fleetProfiles = {};
+
+        document.getElementById('input-date').value = new Date().toISOString().split('T')[0];
+
+        // Layout Input Toggles
+        const radOdo = document.querySelector('input[value="odometer"]');
+        const radTrip = document.querySelector('input[value="trip"]');
+        const boxOdo = document.getElementById('box-odometer');
+        const boxTrip = document.getElementById('box-trip');
+
+        function toggleInputMode() {
+            if (radOdo.checked) {
+                boxOdo.classList.remove('hidden');
+                boxTrip.classList.add('hidden');
+                document.getElementById('input-trip').value = '';
+                document.getElementById('input-odometer').setAttribute('required', 'true');
+                document.getElementById('input-trip').removeAttribute('required');
+            } else {
+                boxOdo.classList.add('hidden');
+                boxTrip.classList.remove('hidden');
+                document.getElementById('input-odometer').value = '';
+                document.getElementById('input-trip').setAttribute('required', 'true');
+                document.getElementById('input-odometer').removeAttribute('required');
+            }
+            calculateLivePreview();
+        }
+        radOdo.addEventListener('change', toggleInputMode);
+        radTrip.addEventListener('change', toggleInputMode);
+
+        // Core Connection Management Monitor
+        db.ref('.info/connected').on('value', (snap) => {
+            const statusDiv = document.getElementById('connection-status');
+            if (snap.val() === true) {
+                statusDiv.innerText = "Firebase Connected";
+                statusDiv.className = "text-xs bg-emerald-950 text-emerald-400 px-3 py-1 rounded-full border border-emerald-800";
+            } else {
+                statusDiv.innerText = "Offline / Cache Syncing";
+                statusDiv.className = "text-xs bg-red-950 text-red-400 px-3 py-1 rounded-full border border-red-800";
+            }
+        });
+
+        // ----------------------------------------------------
+        // SYNC PIPELINE 1: FLEET VEHICLES SYNC
+        // ----------------------------------------------------
+        db.ref('vehicles').on('value', (snapshot) => {
+            const data = snapshot.val() || {};
+            fleetProfiles = data;
+            
+            const dropdown = document.getElementById('global-vehicle-select');
+            dropdown.innerHTML = '';
+
+            // If empty database state, supply first option automatically
+            if (Object.keys(data).length === 0) {
+                db.ref('vehicles').push({ name: "Primary Commercial Fleet", type: "Commercial Truck" });
+                return;
+            }
+
+            for (let key in data) {
+                const opt = document.createElement('option');
+                opt.value = key;
+                opt.innerText = `${data[key].name} (${data[key].type})`;
+                dropdown.appendChild(opt);
+            }
+
+            if (!activeVehicleKey || !data[activeVehicleKey]) {
+                activeVehicleKey = Object.keys(data)[0];
+                dropdown.value = activeVehicleKey;
+            }
+
+            updateActiveVehicleFormContext();
+            attachLogsListener();
+        });
+
+        document.getElementById('global-vehicle-select').addEventListener('change', (e) => {
+            activeVehicleKey = e.target.value;
+            updateActiveVehicleFormContext();
+            attachLogsListener();
+        });
+
+        function updateActiveVehicleFormContext() {
+            if(fleetProfiles[activeVehicleKey]) {
+                document.getElementById('form-active-title').innerText = fleetProfiles[activeVehicleKey].name;
+            }
+        }
+
+        // ----------------------------------------------------
+        // ACTION: ADD PROFILE PIPELINE
+        // ----------------------------------------------------
+        document.getElementById('vehicle-add-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            const name = document.getElementById('new-veh-name').value;
+            const type = document.getElementById('new-veh-type').value;
+
+            db.ref('vehicles').push({ name, type }).then(() => {
+                document.getElementById('new-veh-name').value = '';
+                document.querySelector('details').open = false;
+            });
+        });
+
+        // ----------------------------------------------------
+        // SYNC PIPELINE 2: DATA LOG INTERACTION ROUTING
+        // ----------------------------------------------------
+        let currentLogsRef = null;
+        function attachLogsListener() {
+            if (currentLogsRef) { currentLogsRef.off(); }
+            
+            currentLogsRef = db.ref(`fuel_logs/${activeVehicleKey}`);
+            currentLogsRef.on('value', (snapshot) => {
+                const data = snapshot.val();
+                fuelLogsData = [];
+                if (data) {
+                    for (let key in data) { fuelLogsData.push({ key, ...data[key] }); }
+                }
+                fuelLogsData.sort((a, b) => new Date(a.date) - new Date(b.date));
+                processAndRenderLogs();
+            });
+        }
+
+        // ----------------------------------------------------
+        // COMPUTATION LOGIC & PROCESSING
+        // ----------------------------------------------------
+        const inputGallons = document.getElementById('input-gallons');
+        const inputCost = document.getElementById('input-cost');
+        const inputOdometer = document.getElementById('input-odometer');
+        const inputTrip = document.getElementById('input-trip');
+
+        function calculateLivePreview() {
+            const gals = parseFloat(inputGallons.value) || 0;
+            const cost = parseFloat(inputCost.value) || 0;
+            
+            if(gals > 0 && cost > 0) {
+                document.getElementById('live-cpg').innerText = `$${(cost / gals).toFixed(3)}`;
+            } else { document.getElementById('live-cpg').innerText = '--'; }
+
+            if (radTrip.checked && gals > 0) {
+                const tripMiles = parseFloat(inputTrip.value) || 0;
+                if(tripMiles > 0) {
+                    document.getElementById('live-mpg').innerText = `${(tripMiles / gals).toFixed(2)} MPG`;
+                    return;
+                }
+            }
+            if (radOdo.checked && gals > 0 && fuelLogsData.length > 0) {
+                const curOdo = parseFloat(inputOdometer.value) || 0;
+                const lastLog = fuelLogsData[fuelLogsData.length - 1];
+                if (lastLog && lastLog.odometer && curOdo > lastLog.odometer) {
+                    const diff = curOdo - lastLog.odometer;
+                    document.getElementById('live-mpg').innerText = `${(diff / gals).toFixed(2)} MPG (Est)`;
+                    return;
+                }
+            }
+            document.getElementById('live-mpg').innerText = '--';
+        }
+
+        [inputGallons, inputCost, inputOdometer, inputTrip].forEach(el => el.addEventListener('input', calculateLivePreview));
+
+        // Submit Entry Log Hook
+        document.getElementById('fuel-form').addEventListener('submit', (e) => {
+            e.preventDefault();
+            if (!activeVehicleKey) return;
+
+            const date = document.getElementById('input-date').value;
+            const fuelType = document.getElementById('input-fuel-type').value;
+            const gallons = parseFloat(inputGallons.value);
+            const totalCost = parseFloat(inputCost.value);
+            const trackingMode = document.querySelector('input[name="dist-mode"]:checked').value;
+            
+            let odometer = trackingMode === 'odometer' ? parseFloat(inputOdometer.value) : null;
+            let tripMiles = trackingMode === 'trip' ? parseFloat(inputTrip.value) : null;
+
+            const newLog = {
+                date, fuelType, gallons, totalCost, trackingMode, odometer, tripMiles,
+                timestamp: firebase.database.ServerValue.TIMESTAMP
+            };
+
+            db.ref(`fuel_logs/${activeVehicleKey}`).push(newLog).then(() => {
+                inputGallons.value = ''; inputCost.value = '';
+                inputOdometer.value = ''; inputTrip.value = '';
+                calculateLivePreview();
+            });
+        });
+
+        window.deleteEntry = function(key) {
+            if(confirm("Confirm record deletion?")) {
+                db.ref(`fuel_logs/${activeVehicleKey}/${key}`).remove();
+            }
+        };
+
+        function processAndRenderLogs() {
+            const tableBody = document.getElementById('log-table-body');
+            tableBody.innerHTML = '';
+
+            let totalMiles = 0, totalCost = 0, totalGals = 0;
+            const displayArray = [...fuelLogsData].reverse();
+
+            fuelLogsData.forEach((log, index) => {
+                let currentSegmentMiles = 0;
+                
+                // Exclude auxiliary fluids like DEF from baseline MPG calculations
+                const isPropulsionFuel = (log.fuelType !== 'DEF Fluid');
+
+                if (log.trackingMode === 'trip' || log.tripMiles > 0) {
+                    currentSegmentMiles = log.tripMiles;
+                } else if (log.trackingMode === 'odometer' && index > 0) {
+                    const prevLog = fuelLogsData[index - 1];
+                    if (prevLog.odometer && log.odometer > prevLog.odometer) {
+                        currentSegmentMiles = log.odometer - prevLog.odometer;
+                    }
+                }
+
+                log.calculatedSegmentMiles = currentSegmentMiles;
+                log.calculatedMpg = (currentSegmentMiles > 0 && log.gallons > 0 && isPropulsionFuel) ? (currentSegmentMiles / log.gallons) : 0;
+                log.costPerGallon = log.gallons > 0 ? (log.totalCost / log.gallons) : 0;
+
+                if (currentSegmentMiles > 0 && isPropulsionFuel) {
+                    totalMiles += currentSegmentMiles;
+                    totalGals += log.gallons;
+                }
+                // Always accumulate financial costs across all types
+                totalCost += log.totalCost;
+            });
+
+            const overallMpg = totalGals > 0 ? (totalMiles / totalGals) : 0;
+            const overallCostPerMile = totalMiles > 0 ? (totalCost / totalMiles) : 0;
+
+            document.getElementById('stat-avg-mpg').innerHTML = `${overallMpg.toFixed(2)} <span class="text-sm font-normal text-gray-400">MPG</span>`;
+            document.getElementById('stat-cost-per-mile').innerText = `$${overallCostPerMile.toFixed(2)}`;
+            document.getElementById('stat-total-miles').innerHTML = `${totalMiles.toLocaleString()} <span class="text-sm font-normal text-gray-400">mi</span>`;
+            document.getElementById('stat-total-cost').innerText = `$${totalCost.toLocaleString(undefined, {minimumFractionDigits: 2, maximumFractionDigits: 2})}`;
+
+            displayArray.forEach((log) => {
+                const tr = document.createElement('tr');
+                tr.className = "hover:bg-gray-700/30 transition border-b border-gray-800";
+                
+                const formattedMpg = log.calculatedMpg > 0 ? `${log.calculatedMpg.toFixed(2)}` : `<span class="text-gray-500">--</span>`;
+                const displayDist = log.calculatedSegmentMiles > 0 ? `${log.calculatedSegmentMiles.toFixed(1)}` : `<span class="text-gray-500">--</span>`;
+
+                tr.innerHTML = `
+                    <td class="py-3 px-2 font-mono text-xs">${log.date}</td>
+                    <td class="py-3 px-2 text-xs font-semibold text-amber-400/90">${log.fuelType}</td>
+                    <td class="py-3 px-2 font-mono text-xs text-gray-400">${log.odometer ? log.odometer.toLocaleString() : '--'}</td>
+                    <td class="py-3 px-2 font-mono text-xs text-blue-400">${displayDist}</td>
+                    <td class="py-3 px-2 font-mono text-xs text-purple-300">${log.gallons.toFixed(3)}</td>
+                    <td class="py-3 px-2 font-mono text-xs text-emerald-400">$${log.costPerGallon.toFixed(3)}</td>
+                    <td class="py-3 px-2 font-mono font-bold text-sm text-amber-500">${formattedMpg}</td>
+                    <td class="py-3 px-2 text-right">
+                        <button onclick="deleteEntry('${log.key}')" class="text-red-400 hover:text-red-500 text-xs bg-red-950/40 px-2 py-1 rounded border border-red-900/50 transition">Delete</button>
+                    </td>
+                `;
+                tableBody.appendChild(tr);
+            });
+        }
+    </script>
+</body>
+</html>

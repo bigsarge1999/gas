@@ -1,0 +1,319 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Fill Line - Fuel Tracker</title>
+  
+  <!-- Firebase SDKs -->
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-firestore-compat.js"></script>
+
+  <style>
+    :root {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --accent-color: #2e7d32; /* Dark green accent */
+      --accent-hover: #388e3c;
+      --text-main: #e0e0e0;
+      --text-muted: #a0a0a0;
+      --border-color: #333333;
+      --danger-color: #c62828;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; }
+    body { background-color: var(--bg-color); color: var(--text-main); padding: 15px; max-width: 600px; margin: 0 auto; }
+
+    /* Top Bar */
+    .top-bar { display: flex; justify-content: space-between; align-items: center; padding-bottom: 15px; border-bottom: 1px solid var(--border-color); margin-bottom: 15px; }
+    .brand { font-size: 1.4rem; font-weight: bold; color: var(--accent-color); }
+    .status-chip { font-size: 0.8rem; padding: 4px 8px; borderRadius: 12px; background: #333; color: #fff; }
+    .status-online { background: #1b5e20; }
+    .status-offline { background: #b71c1c; }
+
+    /* Navigation Tabs */
+    .nav-tabs { display: flex; gap: 10px; margin-bottom: 15px; }
+    .tab-btn { flex: 1; padding: 10px; background: var(--card-bg); border: 1px solid var(--border-color); color: var(--text-main); font-weight: bold; cursor: pointer; border-radius: 6px; }
+    .tab-btn.active { background: var(--accent-color); border-color: var(--accent-color); }
+
+    /* Containers */
+    .card { background: var(--card-bg); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 15px; }
+    .form-group { margin-bottom: 12px; }
+    label { display: block; font-size: 0.85rem; color: var(--text-muted); margin-bottom: 4px; }
+    input, select { width: 100%; padding: 10px; background: #2a2a2a; border: 1px solid var(--border-color); color: var(--text-main); border-radius: 4px; font-size: 1rem; }
+    
+    /* Buttons */
+    .btn { width: 100%; padding: 12px; background: var(--accent-color); color: white; border: none; border-radius: 4px; font-weight: bold; font-size: 1rem; cursor: pointer; }
+    .btn:hover { background: var(--accent-hover); }
+    .btn-secondary { background: #424242; }
+    .btn-secondary:hover { background: #616161; }
+
+    /* Sync Modal */
+    .modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.8); align-items: center; justify-content: center; z-index: 100; }
+    .modal-content { background: var(--card-bg); padding: 20px; border-radius: 8px; width: 90%; max-width: 400px; border: 1px solid var(--border-color); }
+
+    /* Log List */
+    .log-item { background: #252525; padding: 10px; border-radius: 4px; border-left: 4px solid var(--accent-color); margin-bottom: 8px; display: flex; justify-content: space-between; align-items: center; }
+  </style>
+</head>
+<body>
+
+  <!-- Top Bar -->
+  <div class="top-bar">
+    <div class="brand">⚓ Fill Line</div>
+    <div>
+      <span id="syncBtn" class="status-chip" style="cursor: pointer;" onclick="openSyncModal()">Sync Code</span>
+      <span id="statusChip" class="status-chip status-offline">Connecting...</span>
+    </div>
+  </div>
+
+  <!-- Navigation Tabs -->
+  <div class="nav-tabs">
+    <button class="tab-btn active" onclick="switchTab('logTab')">Log Fill</button>
+    <button class="tab-btn" onclick="switchTab('historyTab')">History</button>
+    <button class="tab-btn" onclick="switchTab('adminTab')">Admin</button>
+  </div>
+
+  <!-- Tab 1: Log Fuel Entry -->
+  <div id="logTab" class="tab-content">
+    <div class="card">
+      <form id="fuelForm">
+        <div class="form-group">
+          <label for="odometer">Odometer / Hours</label>
+          <input type="number" id="odometer" placeholder="e.g. 142500" required>
+        </div>
+        <div class="form-group">
+          <label for="gallons">Gallons Pumped</label>
+          <input type="number" step="0.001" id="gallons" placeholder="e.g. 45.2" required>
+        </div>
+        <div class="form-group">
+          <label for="price">Total Cost ($)</label>
+          <input type="number" step="0.01" id="price" placeholder="e.g. 165.50" required>
+        </div>
+        <div class="form-group">
+          <label for="location">Location / Station</label>
+          <input type="text" id="location" placeholder="e.g. Pilot - Exit 4" required>
+        </div>
+        <button type="submit" class="btn">Save Fill-Up</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Tab 2: History -->
+  <div id="historyTab" class="tab-content" style="display: none;">
+    <div class="card">
+      <h3>Recent Fill-ups</h3>
+      <br>
+      <div id="logsContainer">
+        <p style="color: var(--text-muted);">Loading logs...</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Tab 3: Admin -->
+  <div id="adminTab" class="tab-content" style="display: none;">
+    <div class="card" id="adminLock">
+      <h3>Admin Unlock</h3>
+      <br>
+      <div class="form-group">
+        <label for="passcode">Enter Admin Passcode</label>
+        <input type="password" id="passcode" placeholder="••••••••">
+      </div>
+      <button class="btn" onclick="unlockAdmin()">Unlock</button>
+    </div>
+
+    <div class="card" id="adminPanel" style="display: none;">
+      <h3>Admin Management</h3>
+      <br>
+      <p style="color: #4caf50; font-weight: bold;">✔ Admin Authenticated</p>
+      <br>
+      <button class="btn btn-secondary" onclick="exportData()">Export All CSV Data</button>
+    </div>
+  </div>
+
+  <!-- Sync Code Modal -->
+  <div id="syncModal" class="modal">
+    <div class="modal-content">
+      <h3>Device Sync Code</h3>
+      <br>
+      <p style="font-size: 0.85rem; color: var(--text-muted);">Use this code to sync fuel logs across multiple phones or laptops.</p>
+      <br>
+      <div class="form-group">
+        <label>Your Sync Code</label>
+        <input type="text" id="syncCodeInput">
+      </div>
+      <button class="btn" onclick="saveSyncCode()">Set New Sync Code</button>
+      <br><br>
+      <button class="btn btn-secondary" onclick="closeSyncModal()">Close</button>
+    </div>
+  </div>
+
+  <script>
+    // -------------------------------------------------------------
+    // CONFIGURATION & SETUP
+    // -------------------------------------------------------------
+    const ADMIN_PASSCODE = "Sarge#Diesel2026!"; // Hardcoded Admin Passcode
+
+    // Your Firebase Configuration
+    const firebaseConfig = {
+      apiKey: "AIzaSyAg1FLnbsWeDsR4R5mCaXqEvnvo4fd1pyk",
+      authDomain: "gas99-54c51.firebaseapp.com",
+      projectId: "gas99-54c51-4ed58",
+      storageBucket: "gas99-54c51.appspot.com",
+      messagingSenderId: "374246142145",
+      appId: "1:374246142145:web:8ba51fef0bf84283f3f5bd"
+    };
+
+    // Initialize Firebase
+    firebase.initializeApp(firebaseConfig);
+    const auth = firebase.auth();
+    const db = firebase.firestore();
+
+    // Default Sync Code setup
+    let syncCode = localStorage.getItem('fillline_sync_code');
+    if (!syncCode) {
+      syncCode = 'truck-' + Math.floor(100000 + Math.random() * 900000);
+      localStorage.setItem('fillline_sync_code', syncCode);
+    }
+
+    // -------------------------------------------------------------
+    // AUTHENTICATION & INITIALIZATION
+    // -------------------------------------------------------------
+    // Silent Background Anonymous Sign-In
+    auth.signInAnonymously().then(() => {
+      document.getElementById('statusChip').innerText = "Connected";
+      document.getElementById('statusChip').className = "status-chip status-online";
+      loadLogs();
+    }).catch((error) => {
+      console.error("Auth Error:", error);
+      document.getElementById('statusChip').innerText = "Connection Failed";
+      document.getElementById('statusChip').className = "status-chip status-offline";
+    });
+
+    // -------------------------------------------------------------
+    // UI TAB NAVIGATION
+    // -------------------------------------------------------------
+    function switchTab(tabId) {
+      document.querySelectorAll('.tab-content').forEach(el => el.style.display = 'none');
+      document.querySelectorAll('.tab-btn').forEach(el => el.classList.remove('active'));
+      
+      document.getElementById(tabId).style.display = 'block';
+      event.target.classList.add('active');
+
+      if (tabId === 'historyTab') {
+        loadLogs();
+      }
+    }
+
+    // -------------------------------------------------------------
+    // LOG FUEL DATA (FIRESTORE)
+    // -------------------------------------------------------------
+    document.getElementById('fuelForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+      
+      const entry = {
+        syncCode: syncCode,
+        odometer: parseFloat(document.getElementById('odometer').value),
+        gallons: parseFloat(document.getElementById('gallons').value),
+        price: parseFloat(document.getElementById('price').value),
+        location: document.getElementById('location').value,
+        timestamp: firebase.firestore.FieldValue.serverTimestamp()
+      };
+
+      db.collection('fillups').add(entry).then(() => {
+        alert('Fill-up saved successfully!');
+        document.getElementById('fuelForm').reset();
+      }).catch(err => {
+        alert('Error saving data: ' + err.message);
+      });
+    });
+
+    function loadLogs() {
+      const container = document.getElementById('logsContainer');
+      
+      db.collection('fillups')
+        .where('syncCode', '==', syncCode)
+        .get()
+        .then(snapshot => {
+          if (snapshot.empty) {
+            container.innerHTML = `<p style="color: var(--text-muted);">No entries found for sync code: <b>${syncCode}</b></p>`;
+            return;
+          }
+
+          let html = '';
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            html += `
+              <div class="log-item">
+                <div>
+                  <strong>${data.location}</strong><br>
+                  <small>${data.gallons} gal @ $${data.price}</small>
+                </div>
+                <div>
+                  <strong>${data.odometer} mi</strong>
+                </div>
+              </div>
+            `;
+          });
+          container.innerHTML = html;
+        }).catch(err => {
+          container.innerHTML = `<p style="color: var(--danger-color);">Error loading logs: ${err.message}</p>`;
+        });
+    }
+
+    // -------------------------------------------------------------
+    // ADMIN FUNCTIONS
+    // -------------------------------------------------------------
+    function unlockAdmin() {
+      const input = document.getElementById('passcode').value;
+      if (input === ADMIN_PASSCODE) {
+        document.getElementById('adminLock').style.display = 'none';
+        document.getElementById('adminPanel').style.display = 'block';
+      } else {
+        alert('Incorrect Admin Passcode');
+      }
+    }
+
+    function exportData() {
+      db.collection('fillups').where('syncCode', '==', syncCode).get().then(snapshot => {
+        let csv = 'Location,Odometer,Gallons,Price\n';
+        snapshot.forEach(doc => {
+          const d = doc.data();
+          csv += `"${d.location}",${d.odometer},${d.gallons},${d.price}\n`;
+        });
+
+        const blob = new Blob([csv], { type: 'text/csv' });
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.setAttribute('href', url);
+        a.setAttribute('download', `fillup-logs-${syncCode}.csv`);
+        a.click();
+      });
+    }
+
+    // -------------------------------------------------------------
+    // SYNC CODE MODAL HANDLERS
+    // -------------------------------------------------------------
+    function openSyncModal() {
+      document.getElementById('syncCodeInput').value = syncCode;
+      document.getElementById('syncModal').style.display = 'flex';
+    }
+
+    function closeSyncModal() {
+      document.getElementById('syncModal').style.display = 'none';
+    }
+
+    function saveSyncCode() {
+      const newCode = document.getElementById('syncCodeInput').value.trim();
+      if (newCode) {
+        syncCode = newCode;
+        localStorage.setItem('fillline_sync_code', syncCode);
+        closeSyncModal();
+        loadLogs();
+        alert('Sync code updated to: ' + syncCode);
+      }
+    }
+  </script>
+</body>
+</html>

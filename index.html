@@ -1,0 +1,1168 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Fill Line — Fuel Mileage Tracker</title>
+<link rel="preconnect" href="https://fonts.bunny.net">
+<link href="https://fonts.bunny.net/css?family=space-grotesk:400,500,600,700|inter:400,500,600|jetbrains-mono:400,500,700&display=swap" rel="stylesheet">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.4/chart.umd.min.js"></script>
+<style>
+  :root{
+    --asphalt:#14171d;
+    --asphalt-2:#1c2028;
+    --panel:#20242e;
+    --line:#2c3140;
+    --ink:#eceef2;
+    --ink-dim:#9199ab;
+    --amber:#f2a71b;
+    --amber-dim:#7a5817;
+    --teal:#3fb8ac;
+    --red:#e05a4e;
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0;
+    background:
+      radial-gradient(1200px 500px at 50% -10%, #232838 0%, var(--asphalt) 60%);
+    color:var(--ink);
+    font-family:'Inter',sans-serif;
+    -webkit-font-smoothing:antialiased;
+    padding:32px 20px 80px;
+  }
+  .wrap{max-width:960px;margin:0 auto;}
+
+  .eyebrow{
+    font-family:'JetBrains Mono',monospace;
+    font-size:12px;
+    letter-spacing:.14em;
+    text-transform:uppercase;
+    color:var(--amber);
+    display:flex;align-items:center;gap:8px;
+  }
+  .eyebrow::before{content:'';width:8px;height:8px;border-radius:50%;background:var(--amber);box-shadow:0 0 8px var(--amber);}
+  h1{
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:clamp(30px,4.5vw,42px);
+    margin:6px 0 4px;
+    letter-spacing:-0.01em;
+  }
+  .sub{color:var(--ink-dim);font-size:14.5px;margin-bottom:24px;max-width:60ch;}
+
+  /* Auth / Vehicle bar */
+  .vbar{
+    display:flex;align-items:center;gap:12px;flex-wrap:wrap;
+    background:linear-gradient(180deg,var(--panel),var(--asphalt-2));
+    border:1px solid var(--line);
+    border-radius:14px;
+    padding:14px 16px;
+    margin-bottom:20px;
+  }
+  .vbar select, .vbar input.phone-input{
+    background:var(--asphalt);
+    color:var(--ink);
+    border:1px solid var(--line);
+    border-radius:9px;
+    padding:9px 12px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:600;
+    font-size:14px;
+    flex:1;
+    min-width:160px;
+  }
+  .vbar select:focus, .vbar input.phone-input:focus{border-color:var(--amber);outline:none;}
+  .chip{
+    font-family:'JetBrains Mono',monospace;
+    font-size:10.5px;
+    color:var(--ink-dim);
+    border:1px solid var(--line);
+    border-radius:100px;
+    padding:5px 10px;
+    text-transform:uppercase;
+    letter-spacing:.06em;
+    white-space:nowrap;
+  }
+  .vbar button{width:auto;padding:9px 14px;font-size:13px;}
+  .vbar button.ghost{width:auto;}
+
+  .grid{display:grid;grid-template-columns:1.1fr 1fr;gap:20px;}
+  @media (max-width:760px){.grid{grid-template-columns:1fr;}}
+
+  .panel{
+    background:linear-gradient(180deg,var(--panel),var(--asphalt-2));
+    border:1px solid var(--line);
+    border-radius:16px;
+    padding:22px;
+  }
+  .panel h2{
+    font-family:'Space Grotesk',sans-serif;
+    font-size:15px;
+    margin:0 0 16px;
+    color:var(--ink);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .panel h2 span{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-dim);font-weight:400;}
+
+  label{display:block;font-size:12.5px;color:var(--ink-dim);margin-bottom:5px;font-family:'JetBrains Mono',monospace;letter-spacing:.02em;}
+  input,select.field{
+    width:100%;
+    background:var(--asphalt);
+    border:1px solid var(--line);
+    color:var(--ink);
+    border-radius:9px;
+    padding:10px 12px;
+    font-family:'JetBrains Mono',monospace;
+    font-size:14.5px;
+    margin-bottom:14px;
+    outline:none;
+    transition:border-color .15s;
+  }
+  input:focus,select.field:focus{border-color:var(--amber);}
+  input::-webkit-outer-spin-button,input::-webkit-inner-spin-button{-webkit-appearance:none;margin:0;}
+
+  .row2{display:grid;grid-template-columns:1fr 1fr;gap:12px;}
+
+  button{
+    width:100%;
+    background:var(--amber);
+    color:#1a1206;
+    border:none;
+    border-radius:9px;
+    padding:12px;
+    font-family:'Space Grotesk',sans-serif;
+    font-weight:700;
+    font-size:14.5px;
+    cursor:pointer;
+    transition:filter .15s, transform .1s;
+  }
+  button:hover{filter:brightness(1.08);}
+  button:active{transform:scale(.98);}
+  button.ghost{
+    background:transparent;
+    color:var(--ink-dim);
+    border:1px solid var(--line);
+    font-weight:500;
+    margin-top:8px;
+  }
+  button.ghost:hover{color:var(--ink);border-color:var(--ink-dim);}
+  button.danger{background:var(--red);color:#2b0d0a;}
+
+  /* Gauge */
+  .gauge-wrap{display:flex;flex-direction:column;align-items:center;padding:6px 0 2px;}
+  .gauge-num{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:40px;margin-top:-46px;}
+  .gauge-label{font-family:'JetBrains Mono',monospace;font-size:11px;color:var(--ink-dim);letter-spacing:.1em;text-transform:uppercase;}
+  .gauge-delta{font-family:'JetBrains Mono',monospace;font-size:12.5px;margin-top:4px;}
+  .up{color:var(--teal);} .down{color:var(--red);}
+
+  .stat-row{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:16px;}
+  .stat{background:var(--asphalt);border:1px solid var(--line);border-radius:10px;padding:12px;}
+  .stat .v{font-family:'Space Grotesk',sans-serif;font-weight:700;font-size:20px;}
+  .stat .k{font-family:'JetBrains Mono',monospace;font-size:10.5px;color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em;margin-top:2px;}
+
+  .full{grid-column:1/-1;margin-top:20px;}
+
+  table{width:100%;border-collapse:collapse;font-size:13.5px;}
+  th{
+    text-align:left;font-family:'JetBrains Mono',monospace;font-size:10.5px;
+    color:var(--ink-dim);text-transform:uppercase;letter-spacing:.08em;
+    padding:8px 10px;border-bottom:1px solid var(--line);
+  }
+  td{padding:10px;border-bottom:1px solid rgba(255,255,255,.04);font-family:'JetBrains Mono',monospace;}
+  tr:hover td{background:rgba(255,255,255,.02);}
+  .del{cursor:pointer;color:var(--ink-dim);}
+  .del:hover{color:var(--red);}
+  .empty{color:var(--ink-dim);font-size:13.5px;padding:20px 4px;text-align:center;}
+
+  .status{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-dim);margin-top:10px;text-align:center;}
+  .status.err{color:var(--red);}
+  .status.ok{color:var(--teal);}
+
+  canvas{max-height:220px;}
+  .footnote{font-size:12px;color:var(--ink-dim);margin-top:26px;line-height:1.6;}
+  .footnote code{background:var(--asphalt);padding:1px 6px;border-radius:5px;font-family:'JetBrains Mono',monospace;}
+
+  /* Vehicle manager panel */
+  #vehiclePanel{display:none;margin-bottom:20px;}
+  #vehiclePanel.open{display:block;}
+  .vlist{display:flex;flex-direction:column;gap:10px;margin-bottom:18px;}
+  .vitem{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;
+    background:var(--asphalt);border:1px solid var(--line);border-radius:10px;padding:10px 14px;
+  }
+  .vitem .name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;}
+  .vitem .meta{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-dim);margin-top:2px;}
+  .vitem .actions{display:flex;gap:10px;align-items:center;}
+  .vitem .actions span{cursor:pointer;color:var(--ink-dim);font-size:13px;}
+  .vitem .actions span:hover{color:var(--amber);}
+  .vitem .actions span.del:hover{color:var(--red);}
+  .hint{color:var(--ink-dim);font-size:13px;line-height:1.6;}
+
+  /* Tabs */
+  .tabnav{display:flex;gap:8px;margin-bottom:20px;flex-wrap:wrap;}
+  .tabbtn{
+    width:auto;background:transparent;color:var(--ink-dim);border:1px solid var(--line);
+    padding:9px 16px;border-radius:100px;font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:13px;
+  }
+  .tabbtn.active{background:var(--amber);color:#1a1206;border-color:var(--amber);}
+  .tabpanel{display:none;}
+  .tabpanel.active{display:block;}
+
+  /* Admin / list rows shared by Admin + Reports */
+  .rowlist{display:flex;flex-direction:column;gap:10px;}
+  .rowitem{
+    display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;
+    background:var(--asphalt);border:1px solid var(--line);border-radius:10px;padding:10px 14px;
+  }
+  .rowitem .name{font-family:'Space Grotesk',sans-serif;font-weight:600;font-size:14px;}
+  .rowitem .meta{font-family:'JetBrains Mono',monospace;font-size:11.5px;color:var(--ink-dim);margin-top:2px;}
+  .rowitem .actions{display:flex;gap:12px;align-items:center;}
+  .rowitem .actions span{cursor:pointer;color:var(--ink-dim);font-size:12.5px;font-family:'JetBrains Mono',monospace;}
+  .rowitem .actions span:hover{color:var(--amber);}
+  .rowitem .actions span.del:hover{color:var(--red);}
+  .adminwarn{
+    background:rgba(224,90,78,.08);border:1px solid rgba(224,90,78,.35);color:var(--red);
+    border-radius:10px;padding:10px 14px;font-size:12px;line-height:1.6;margin-bottom:16px;
+  }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="eyebrow">Fill Line</div>
+  <h1>Fuel mileage calculator &amp; tracker</h1>
+  <p class="sub">Log every fill-up to get instant efficiency and cost-per-mile, per vehicle, then watch the trend over time. Synced to Firebase so your log follows you across devices.</p>
+
+  <div class="vbar" id="authBar">
+    <span class="chip" id="authChip">Connecting…</span>
+    <span class="hint" style="flex:1;min-width:200px;">Your sync code links this device to your fill-up log. Share it with your other devices to see the same data everywhere.</span>
+    <button class="ghost" id="syncCodeBtn" style="width:auto;margin-left:auto;">Sync code</button>
+    <button class="ghost" id="adminUnlockBtn" style="width:auto;">Admin</button>
+  </div>
+
+  <div class="tabnav">
+    <button class="tabbtn active" data-tab="tracker">Tracker</button>
+    <button class="tabbtn" data-tab="reports">Reports</button>
+    <button class="tabbtn" id="adminTabBtn" data-tab="admin" style="display:none;">Admin</button>
+  </div>
+
+  <div id="tab-tracker" class="tabpanel active">
+  <div class="vbar">
+    <select id="vehicleSelect"></select>
+    <span class="chip" id="vehicleTypeChip">—</span>
+    <button class="ghost" id="manageBtn" style="width:auto;">Manage vehicles</button>
+  </div>
+
+  <div id="vehiclePanel" class="panel">
+    <h2>Vehicles <span id="vehicleCount"></span></h2>
+    <div class="vlist" id="vlistHost"></div>
+
+    <label for="vName">Vehicle name / nickname</label>
+    <input type="text" id="vName" placeholder="e.g. The Commuter">
+    <div class="row2">
+      <div>
+        <label for="vMakeModel">Make &amp; model</label>
+        <input type="text" id="vMakeModel" placeholder="e.g. Ram 3500">
+      </div>
+      <div>
+        <label for="vFuelType">Fuel type</label>
+        <select class="field" id="vFuelType">
+          <option value="diesel">Diesel</option>
+          <option value="gasoline">Gasoline</option>
+          <option value="hybrid">Hybrid</option>
+          <option value="electric">Electric</option>
+          <option value="other">Other</option>
+        </select>
+      </div>
+    </div>
+    <button id="saveVehicleBtn">Add vehicle</button>
+    <button class="ghost" id="cancelVehicleBtn">Close</button>
+    <div id="vehicleStatus" class="status"></div>
+  </div>
+
+  <div class="grid">
+    <div class="panel">
+      <h2>New fill-up <span id="lastOdoHint"></span></h2>
+      <label for="odo">Odometer reading (mi)</label>
+      <input type="number" id="odo" placeholder="e.g. 48213" step="0.1">
+
+      <div class="row2">
+        <div>
+          <label for="gallons" id="gallonsLabel">Gallons added</label>
+          <input type="number" id="gallons" placeholder="e.g. 11.4" step="0.01">
+        </div>
+        <div>
+          <label for="price" id="priceLabel">Price / gallon ($)</label>
+          <input type="number" id="price" placeholder="optional" step="0.01">
+        </div>
+      </div>
+
+      <label for="date">Date</label>
+      <input type="date" id="date">
+
+      <button id="addBtn">Add fill-up</button>
+      <div id="status" class="status"></div>
+    </div>
+
+    <div class="panel">
+      <h2>Latest <span id="metricLabelSpan">MPG</span> <span>vs your average</span></h2>
+      <div class="gauge-wrap">
+        <svg id="gaugeSvg" viewBox="0 0 220 130" width="220" height="130"></svg>
+        <div class="gauge-num" id="gaugeNum">—</div>
+        <div class="gauge-label" id="gaugeUnitLabel">miles per gallon</div>
+        <div class="gauge-delta" id="gaugeDelta"></div>
+      </div>
+      <div class="stat-row">
+        <div class="stat"><div class="v" id="statAvg">—</div><div class="k" id="statAvgLabel">avg mpg</div></div>
+        <div class="stat"><div class="v" id="statCpm">—</div><div class="k">$ / mile</div></div>
+        <div class="stat"><div class="v" id="statBest">—</div><div class="k" id="statBestLabel">best mpg</div></div>
+        <div class="stat"><div class="v" id="statTotal">—</div><div class="k">total fill-ups</div></div>
+      </div>
+    </div>
+
+    <div class="panel full">
+      <h2>Efficiency trend <span id="chartUnitSpan">mpg per fill-up</span></h2>
+      <canvas id="trendChart"></canvas>
+    </div>
+
+    <div class="panel full">
+      <h2>Fill-up history <span id="histCount"></span></h2>
+      <div id="tableHost"></div>
+    </div>
+  </div>
+  </div><!-- /tab-tracker -->
+
+  <div id="tab-reports" class="tabpanel">
+    <div class="panel">
+      <h2>All-vehicle summary <span id="reportsSubtitle">across every vehicle on your account</span></h2>
+      <div class="stat-row">
+        <div class="stat"><div class="v" id="repTotalSpent">—</div><div class="k">total spent</div></div>
+        <div class="stat"><div class="v" id="repTotalMiles">—</div><div class="k">total miles logged</div></div>
+        <div class="stat"><div class="v" id="repTotalFillups">—</div><div class="k">total fill-ups</div></div>
+        <div class="stat"><div class="v" id="repVehicleCount">—</div><div class="k">vehicles tracked</div></div>
+      </div>
+      <div id="reportsStatus" class="status"></div>
+    </div>
+
+    <div class="panel full">
+      <h2>Per-vehicle comparison</h2>
+      <div id="reportsTableHost"><div class="empty">Open this tab while signed in to load your report.</div></div>
+    </div>
+
+    <div class="panel full">
+      <h2>Monthly spend <span>across all vehicles</span></h2>
+      <canvas id="reportsChart"></canvas>
+    </div>
+  </div><!-- /tab-reports -->
+
+  <div id="tab-admin" class="tabpanel">
+    <div class="adminwarn">
+      Admin access here is a UI convenience only — it is <strong>not</strong> a real security boundary.
+    </div>
+    <div class="panel">
+      <h2>Look up a sync group</h2>
+      <div style="display:flex; gap:8px; align-items:center; flex-wrap:wrap;">
+        <input type="text" id="adminCodeInput" placeholder="Enter sync code" style="font-family:'JetBrains Mono',monospace; text-transform:uppercase;">
+        <button class="ghost" id="adminLookupBtn" style="width:auto;">View data</button>
+      </div>
+      <div id="adminStatus" class="status"></div>
+    </div>
+
+    <div class="panel full" id="adminDetailPanel" style="display:none;">
+      <h2 id="adminDetailTitle">Vehicles</h2>
+      <div id="adminVehicleList" class="rowlist"></div>
+    </div>
+
+    <div class="panel full" id="adminFillupsPanel" style="display:none;">
+      <h2 id="adminFillupsTitle">Fill-ups</h2>
+      <div id="adminFillupsList"></div>
+    </div>
+  </div><!-- /tab-admin -->
+
+  <p class="footnote">
+    Storage: authenticates anonymously via Firebase and writes to Firestore, scoped to your sync code.
+  </p>
+</div>
+
+<script type="module">
+  const statusEl = document.getElementById('status');
+  const vehicleStatusEl = document.getElementById('vehicleStatus');
+
+  let vehicles = [];          
+  let currentVehicleId = null;
+  let entries = [];           
+  let editingVehicleId = null;
+  let isAdmin = false;
+
+  let fb = null;
+
+  function setStatus(msg, kind){ statusEl.textContent = msg; statusEl.className = 'status' + (kind ? ' ' + kind : ''); }
+  function setVStatus(msg, kind){ vehicleStatusEl.textContent = msg; vehicleStatusEl.className = 'status' + (kind ? ' ' + kind : ''); }
+
+  function currentVehicle(){ return vehicles.find(v => v.id === currentVehicleId) || null; }
+  function unitsFor(vehicle){
+    if (vehicle && vehicle.fuelType === 'electric') {
+      return { unitLabel: 'kWh added', metric: 'mi/kWh', gaugeUnit: 'miles per kWh', chartUnit: 'mi/kWh per fill-up', priceLabel: 'Price / kWh ($)' };
+    }
+    return { unitLabel: 'Gallons added', metric: 'MPG', gaugeUnit: 'miles per gallon', chartUnit: 'mpg per fill-up', priceLabel: 'Price / gallon ($)' };
+  }
+
+  // =========================================================
+  // Tabs
+  // =========================================================
+  document.querySelectorAll('.tabbtn').forEach(btn => {
+    btn.addEventListener('click', () => {
+      const tab = btn.dataset.tab;
+      document.querySelectorAll('.tabbtn').forEach(b => b.classList.toggle('active', b === btn));
+      document.querySelectorAll('.tabpanel').forEach(p => p.classList.toggle('active', p.id === 'tab-' + tab));
+      if (tab === 'reports') loadReports();
+      if (tab === 'admin') { document.getElementById('adminDetailPanel').style.display = 'none'; document.getElementById('adminFillupsPanel').style.display = 'none'; }
+    });
+  });
+
+  // =========================================================
+  // Firebase Configuration & Phone Authentication
+  // =========================================================
+  const firebaseConfig = {
+    apiKey: "AIzaSyAg1FLnbsWeDsR4R5mCaXqEvnvo4fd1pyk",
+    authDomain: "gas99-54c51-4ed58.firebaseapp.com",
+    projectId: "gas99-54c51-4ed58",
+    storageBucket: "gas99-54c51-4ed58.firebasestorage.app",
+    messagingSenderId: "384195979917",
+    appId: "1:384195979917:web:8ce67b458f7a67d5ab90c4",
+    measurementId: "G-5N8SQTMW2L"
+  };
+
+  const ADMIN_PASSCODE = "changeme";
+
+  function generateSyncCode(){
+    const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+    let code = '';
+    for (let i = 0; i < 8; i++) code += chars[Math.floor(Math.random() * chars.length)];
+    return code;
+  }
+  function getSyncCode(){
+    let code = localStorage.getItem('fuelLogSyncCode');
+    if (!code) {
+      code = generateSyncCode();
+      localStorage.setItem('fuelLogSyncCode', code);
+    }
+    return code;
+  }
+  function setSyncCode(code){
+    localStorage.setItem('fuelLogSyncCode', code.trim().toUpperCase());
+  }
+
+  async function tryConnectFirebase(){
+    const authChip = document.getElementById('authChip');
+    if (firebaseConfig.apiKey === "YOUR_API_KEY") {
+      setStatus('Local preview mode — add your firebaseConfig to enable syncing.', '');
+      authChip.textContent = 'Firebase not configured';
+      bootLocal();
+      return;
+    }
+    try {
+      const [{ initializeApp }, authMod, storeMod] = await Promise.all([
+        import("https://www.gstatic.com/firebasejs/10.12.2/firebase-app.js"),
+        import("https://www.gstatic.com/firebasejs/10.12.2/firebase-auth.js"),
+        import("https://www.gstatic.com/firebasejs/10.12.2/firebase-firestore.js")
+      ]);
+      const { getAuth, signInAnonymously, onAuthStateChanged } = authMod;
+      const { getFirestore, collection, addDoc, deleteDoc, updateDoc, doc, getDocs, setDoc,
+              query, orderBy, onSnapshot, serverTimestamp } = storeMod;
+
+      const app = initializeApp(firebaseConfig);
+      const auth = getAuth(app);
+      const db = getFirestore(app);
+      fb = { db, auth, fns: { collection, addDoc, deleteDoc, updateDoc, doc, getDocs, setDoc, query, orderBy, onSnapshot, serverTimestamp } };
+      fb.syncCode = getSyncCode();
+
+      onAuthStateChanged(auth, (user) => {
+        if (user) {
+          fb.uid = user.uid;
+          fb.vehiclesRef = collection(db, 'syncGroups', fb.syncCode, 'vehicles');
+          listenToVehicles();
+          authChip.textContent = 'Synced · ' + fb.syncCode;
+          setStatus('Connected — sync code: ' + fb.syncCode, 'ok');
+
+          setDoc(doc(db, 'userProfiles', user.uid), {
+            lastSeen: serverTimestamp(),
+            syncCode: fb.syncCode
+          }, { merge: true }).catch(e => console.warn('Profile write skipped:', e.message));
+        } else {
+          fb.uid = null;
+          fb.vehiclesRef = null;
+          if (fb.unsubVehicles) fb.unsubVehicles();
+          if (fb.unsubEntries) fb.unsubEntries();
+          vehicles = []; entries = []; currentVehicleId = null;
+          authChip.textContent = 'Not connected';
+          setStatus('Not connected — local mode.', '');
+          bootLocal();
+        }
+      });
+
+      if (!auth.currentUser) {
+        signInAnonymously(auth).catch(e => {
+          authChip.textContent = 'Connection failed';
+          setStatus('Sign-in failed: ' + e.message, 'err');
+          bootLocal();
+        });
+      }
+    } catch (e) {
+      fb = null;
+      setStatus('Could not reach Firebase (' + e.message + ') — local mode.', 'err');
+      bootLocal();
+    }
+  }
+
+  document.getElementById('syncCodeBtn').addEventListener('click', () => {
+    const current = fb && fb.syncCode ? fb.syncCode : getSyncCode();
+    const input = window.prompt(
+      'Your sync code is:\n\n' + current +
+      '\n\nThis code is your login — write it down. Enter this same code on any other ' +
+      'device (phone, tablet, laptop) to see the same fill-up log everywhere.\n\n' +
+      'To switch to a different log, type its code below and reload.',
+      current
+    );
+    if (input === null) return;
+    const cleaned = input.trim().toUpperCase();
+    if (cleaned && cleaned !== current) {
+      setSyncCode(cleaned);
+      alert('Sync code updated to ' + cleaned + '. Reloading…');
+      location.reload();
+    }
+  });
+
+  document.getElementById('adminUnlockBtn').addEventListener('click', () => {
+    if (isAdmin) {
+      isAdmin = false;
+      document.getElementById('adminTabBtn').style.display = 'none';
+      document.getElementById('adminUnlockBtn').textContent = 'Admin';
+      return;
+    }
+    const code = window.prompt('Admin passcode:');
+    if (code === null) return;
+    if (code === ADMIN_PASSCODE) {
+      isAdmin = true;
+      document.getElementById('adminTabBtn').style.display = '';
+      document.getElementById('adminUnlockBtn').textContent = 'Admin ✓';
+    } else {
+      alert('Incorrect passcode.');
+    }
+  });
+
+  function bootLocal(){
+    if (vehicles.length === 0) {
+      renderVehicleSelect();
+      renderAll();
+    }
+  }
+
+  function listenToVehicles(){
+    const { query, orderBy, onSnapshot } = fb.fns;
+    const q = query(fb.vehiclesRef, orderBy('createdAt', 'asc'));
+    if (fb.unsubVehicles) fb.unsubVehicles();
+    fb.unsubVehicles = onSnapshot(q, (snap) => {
+      vehicles = [];
+      snap.forEach(d => vehicles.push({ id: d.id, ...d.data() }));
+      if (!currentVehicleId || !vehicles.find(v => v.id === currentVehicleId)) {
+        currentVehicleId = vehicles.length ? vehicles[0].id : null;
+      }
+      renderVehicleSelect();
+      renderVehicleList();
+      if (currentVehicleId) listenToEntries(currentVehicleId); else { entries = []; renderAll(); }
+    }, (err) => setStatus('Sync error: ' + err.message, 'err'));
+  }
+
+  function listenToEntries(vehicleId){
+    const { collection, query, orderBy, onSnapshot } = fb.fns;
+    const entriesRef = collection(fb.db, 'syncGroups', fb.syncCode, 'vehicles', vehicleId, 'fillups');
+    const q = query(entriesRef, orderBy('odo', 'asc'));
+    if (fb.unsubEntries) fb.unsubEntries();
+    fb.unsubEntries = onSnapshot(q, (snap) => {
+      entries = [];
+      snap.forEach(d => entries.push({ id: d.id, ...d.data() }));
+      computeDerived();
+      renderAll();
+    }, (err) => setStatus('Sync error: ' + err.message, 'err'));
+  }
+
+  // =========================================================
+  // Vehicle management
+  // =========================================================
+  const vehicleSelectEl = document.getElementById('vehicleSelect');
+  const vehiclePanelEl = document.getElementById('vehiclePanel');
+  const manageBtn = document.getElementById('manageBtn');
+  const cancelVehicleBtn = document.getElementById('cancelVehicleBtn');
+  const saveVehicleBtn = document.getElementById('saveVehicleBtn');
+
+  manageBtn.addEventListener('click', () => {
+    vehiclePanelEl.classList.add('open');
+    renderVehicleList();
+  });
+  cancelVehicleBtn.addEventListener('click', () => {
+    vehiclePanelEl.classList.remove('open');
+    resetVehicleForm();
+  });
+
+  function resetVehicleForm(){
+    editingVehicleId = null;
+    document.getElementById('vName').value = '';
+    document.getElementById('vMakeModel').value = '';
+    document.getElementById('vFuelType').value = 'diesel';
+    saveVehicleBtn.textContent = 'Add vehicle';
+    setVStatus('', '');
+  }
+
+  saveVehicleBtn.addEventListener('click', async () => {
+    const name = document.getElementById('vName').value.trim();
+    const makeModel = document.getElementById('vMakeModel').value.trim();
+    const fuelType = document.getElementById('vFuelType').value;
+    if (!name) { setVStatus('Give the vehicle a name.', 'err'); return; }
+
+    if (editingVehicleId) {
+      const v = vehicles.find(x => x.id === editingVehicleId);
+      const updated = { name, makeModel, fuelType };
+      if (fb && fb.vehiclesRef) {
+        try {
+          await fb.fns.updateDoc(fb.fns.doc(fb.db, 'syncGroups', fb.syncCode, 'vehicles', editingVehicleId), updated);
+          setVStatus('Vehicle updated.', 'ok');
+        } catch (e) { setVStatus('Update failed: ' + e.message, 'err'); }
+      } else {
+        Object.assign(v, updated);
+        renderVehicleSelect(); renderVehicleList(); renderAll();
+        setVStatus('Vehicle updated.', 'ok');
+      }
+    } else {
+      const payload = { name, makeModel, fuelType };
+      if (fb && fb.vehiclesRef) {
+        try {
+          await fb.fns.addDoc(fb.vehiclesRef, { ...payload, createdAt: fb.fns.serverTimestamp() });
+          setVStatus('Vehicle added.', 'ok');
+        } catch (e) { setVStatus('Could not save: ' + e.message, 'err'); }
+      } else {
+        payload.id = 'local-v-' + Date.now();
+        vehicles.push(payload);
+        if (!currentVehicleId) currentVehicleId = payload.id;
+        renderVehicleSelect(); renderVehicleList(); renderAll();
+        setVStatus('Vehicle added.', 'ok');
+      }
+    }
+    resetVehicleForm();
+  });
+
+  function editVehicle(id){
+    const v = vehicles.find(x => x.id === id);
+    if (!v) return;
+    editingVehicleId = id;
+    document.getElementById('vName').value = v.name || '';
+    document.getElementById('vMakeModel').value = v.makeModel || '';
+    document.getElementById('vFuelType').value = v.fuelType || 'diesel';
+    saveVehicleBtn.textContent = 'Save changes';
+    setVStatus('Editing "' + v.name + '" — save or close to cancel.', '');
+  }
+  window.__editVehicle = editVehicle;
+
+  async function deleteVehicle(id){
+    if (fb && fb.vehiclesRef && !id.startsWith('local-')) {
+      try { await fb.fns.deleteDoc(fb.fns.doc(fb.db, 'syncGroups', fb.syncCode, 'vehicles', id)); }
+      catch(e){ setVStatus('Delete failed: ' + e.message, 'err'); }
+    } else {
+      vehicles = vehicles.filter(v => v.id !== id);
+      if (currentVehicleId === id) currentVehicleId = vehicles.length ? vehicles[0].id : null;
+      entries = [];
+      renderVehicleSelect(); renderVehicleList(); renderAll();
+    }
+  }
+  window.__deleteVehicle = deleteVehicle;
+
+  function renderVehicleList(){
+    const host = document.getElementById('vlistHost');
+    document.getElementById('vehicleCount').textContent = vehicles.length ? vehicles.length + ' saved' : '';
+    if (!vehicles.length) {
+      host.innerHTML = '<div class="hint">No vehicles yet — add your first one below.</div>';
+      return;
+    }
+    host.innerHTML = vehicles.map(v => `
+      <div class="vitem">
+        <div>
+          <div class="name">${v.name}</div>
+          <div class="meta">${v.makeModel || '—'} · ${fuelTypeLabel(v.fuelType)}</div>
+        </div>
+        <div class="actions">
+          <span onclick="__editVehicle('${v.id}')">Edit</span>
+          <span class="del" onclick="__deleteVehicle('${v.id}')">Delete</span>
+        </div>
+      </div>`).join('');
+  }
+
+  function fuelTypeLabel(t){
+    return { gasoline:'Gasoline', diesel:'Diesel', hybrid:'Hybrid', electric:'Electric', other:'Other' }[t] || 'Diesel';
+  }
+
+  function renderVehicleSelect(){
+    if (!vehicles.length) {
+      vehicleSelectEl.innerHTML = '<option value="">No vehicles yet</option>';
+      document.getElementById('vehicleTypeChip').textContent = 'Add a vehicle to begin';
+      vehiclePanelEl.classList.add('open');
+      return;
+    }
+    vehicleSelectEl.innerHTML = vehicles.map(v =>
+      `<option value="${v.id}" ${v.id === currentVehicleId ? 'selected' : ''}>${v.name}</option>`
+    ).join('');
+    const v = currentVehicle();
+    document.getElementById('vehicleTypeChip').textContent = v ? (v.makeModel || fuelTypeLabel(v.fuelType)) : '—';
+  }
+
+  vehicleSelectEl.addEventListener('change', () => {
+    currentVehicleId = vehicleSelectEl.value;
+    document.getElementById('vehicleTypeChip').textContent =
+      currentVehicle() ? (currentVehicle().makeModel || fuelTypeLabel(currentVehicle().fuelType)) : '—';
+    entries = [];
+    renderAll();
+    if (fb && fb.vehiclesRef && currentVehicleId) listenToEntries(currentVehicleId);
+  });
+
+  // =========================================================
+  // Fill-up entries
+  // =========================================================
+  function computeDerived(){
+    for (let i = 0; i < entries.length; i++) {
+      const cur = entries[i];
+      if (i === 0) { cur.mpg = null; }
+      else {
+        const prev = entries[i-1];
+        const miles = cur.odo - prev.odo;
+        cur.mpg = (miles > 0 && cur.gallons > 0) ? miles / cur.gallons : null;
+      }
+      cur.cost = (cur.price && cur.mpg) ? cur.price / cur.mpg : null;
+    }
+  }
+
+  document.getElementById('date').valueAsDate = new Date();
+
+  document.getElementById('addBtn').addEventListener('click', async () => {
+    if (!currentVehicleId) { setStatus('Add a vehicle first.', 'err'); return; }
+    const odo = parseFloat(document.getElementById('odo').value);
+    const gallons = parseFloat(document.getElementById('gallons').value);
+    const price = parseFloat(document.getElementById('price').value);
+    const date = document.getElementById('date').value;
+
+    if (!odo || !gallons || gallons <= 0) {
+      setStatus('Enter a valid odometer reading and amount.', 'err');
+      return;
+    }
+    const payload = {
+      odo, gallons,
+      price: isNaN(price) ? null : price,
+      date: date || new Date().toISOString().slice(0,10)
+    };
+
+    const clearInputs = () => {
+      document.getElementById('odo').value = '';
+      document.getElementById('gallons').value = '';
+      document.getElementById('price').value = '';
+    };
+
+    if (fb && fb.vehiclesRef) {
+      try {
+        const { collection, addDoc, serverTimestamp } = fb.fns;
+        const entriesRef = collection(fb.db, 'syncGroups', fb.syncCode, 'vehicles', currentVehicleId, 'fillups');
+        await addDoc(entriesRef, { ...payload, createdAt: serverTimestamp() });
+        clearInputs();
+        setStatus('Fill-up added and synced.', 'ok');
+      } catch (e) {
+        setStatus('Could not save: ' + e.message, 'err');
+      }
+    } else {
+      payload.id = 'local-' + Date.now();
+      entries.push(payload);
+      entries.sort((a,b) => a.odo - b.odo);
+      computeDerived();
+      renderAll();
+      clearInputs();
+      setStatus('Added locally.', '');
+    }
+  });
+
+  async function removeEntry(id){
+    if (fb && fb.vehiclesRef && currentVehicleId && !id.startsWith('local-')) {
+      try { await fb.fns.deleteDoc(fb.fns.doc(fb.db, 'syncGroups', fb.syncCode, 'vehicles', currentVehicleId, 'fillups', id)); }
+      catch(e){ setStatus('Delete failed: ' + e.message, 'err'); }
+    } else {
+      entries = entries.filter(e => e.id !== id);
+      computeDerived();
+      renderAll();
+    }
+  }
+  window.__removeEntry = removeEntry;
+
+  // =========================================================
+  // Gauge
+  // =========================================================
+  function drawGauge(mpg, avg){
+    try {
+      const svg = document.getElementById('gaugeSvg');
+      const cx = 110, cy = 115, r = 90;
+      const maxScale = Math.max(avg ? avg * 1.6 : 40, mpg ? mpg * 1.2 : 40, 40);
+
+      function pt(angleFrac){
+        const a = Math.PI - angleFrac * Math.PI;
+        return [cx + r * Math.cos(a), cy - r * Math.sin(a)];
+      }
+      function arcPath(f0, f1, color, width){
+        const [x0,y0] = pt(f0), [x1,y1] = pt(f1);
+        const large = (f1-f0) > 0.5 ? 1 : 0;
+        return `<path d="M ${x0} ${y0} A ${r} ${r} 0 ${large} 1 ${x1} ${y1}" stroke="${color}" stroke-width="${width}" fill="none" stroke-linecap="round"/>`;
+      }
+
+      let html = '';
+      html += arcPath(0, 1, '#2c3140', 14);
+      if (avg) {
+        const f = Math.min(avg / maxScale, 1);
+        html += arcPath(0, f, '#3fb8ac33', 14);
+      }
+      if (mpg) {
+        const f = Math.min(mpg / maxScale, 1);
+        const [nx, ny] = pt(f);
+        html += `<line x1="${cx}" y1="${cy}" x2="${nx}" y2="${ny}" stroke="#f2a71b" stroke-width="3" stroke-linecap="round"/>`;
+        html += `<circle cx="${cx}" cy="${cy}" r="6" fill="#f2a71b"/>`;
+      }
+      svg.innerHTML = html;
+    } catch (e) {
+      console.warn('Gauge render skipped:', e.message);
+    }
+  }
+
+  // =========================================================
+  // Chart
+  // =========================================================
+  let chart;
+  function drawChart(metricLabel){
+    if (typeof Chart === 'undefined') return;
+    try {
+      const ctx = document.getElementById('trendChart');
+      const labeled = entries.filter(e => e.mpg != null);
+      const labels = labeled.map(e => e.date);
+      const data = labeled.map(e => Number(e.mpg.toFixed(2)));
+
+      if (chart) chart.destroy();
+      chart = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: metricLabel,
+            data,
+            borderColor: '#f2a71b',
+            backgroundColor: 'rgba(242,167,27,0.12)',
+            fill: true,
+            tension: 0.35,
+            pointRadius: 3,
+            pointBackgroundColor: '#f2a71b'
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { display: false } },
+          scales: {
+            x: { ticks: { color: '#9199ab', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#2c3140' } },
+            y: { ticks: { color: '#9199ab', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#2c3140' } }
+          }
+        }
+      });
+    } catch (e) {
+      console.warn('Chart render skipped:', e.message);
+    }
+  }
+
+  // =========================================================
+  // Table
+  // =========================================================
+  function drawTable(unitLabel){
+    const host = document.getElementById('tableHost');
+    document.getElementById('histCount').textContent = entries.length ? `${entries.length} logged` : '';
+    if (!entries.length) {
+      host.innerHTML = '<div class="empty">No fill-ups yet — add your first one above.</div>';
+      return;
+    }
+    const rows = [...entries].reverse().map(e => `
+      <tr>
+        <td>${e.date || ''}</td>
+        <td>${e.odo.toLocaleString()}</td>
+        <td>${e.gallons.toFixed(2)}</td>
+        <td>${e.mpg != null ? e.mpg.toFixed(2) : '—'}</td>
+        <td>${e.price != null ? '$' + Number(e.price).toFixed(2) : '—'}</td>
+        <td>${e.cost != null ? '$' + e.cost.toFixed(3) : '—'}</td>
+        <td class="del" onclick="__removeEntry('${e.id}')">✕</td>
+      </tr>`).join('');
+    host.innerHTML = `
+      <table>
+        <thead><tr><th>Date</th><th>Odometer</th><th>${unitLabel}</th><th>Metric</th><th>Price</th><th>$/mi</th><th></th></tr></thead>
+        <tbody>${rows}</tbody>
+      </table>`;
+  }
+
+  // =========================================================
+  // Master render
+  // =========================================================
+  function renderAll(){
+    const v = currentVehicle();
+    const u = unitsFor(v);
+
+    document.getElementById('gallonsLabel').textContent = u.unitLabel;
+    document.getElementById('priceLabel').textContent = u.priceLabel;
+    document.getElementById('gaugeUnitLabel').textContent = u.gaugeUnit;
+    document.getElementById('metricLabelSpan').textContent = u.metric;
+    document.getElementById('chartUnitSpan').textContent = u.chartUnit;
+    document.getElementById('statAvgLabel').textContent = 'avg ' + u.metric.toLowerCase();
+    document.getElementById('statBestLabel').textContent = 'best ' + u.metric.toLowerCase();
+
+    const withMpg = entries.filter(e => e.mpg != null);
+    const latest = withMpg[withMpg.length - 1];
+    const avg = withMpg.length ? withMpg.reduce((s,e) => s + e.mpg, 0) / withMpg.length : null;
+    const best = withMpg.length ? Math.max(...withMpg.map(e => e.mpg)) : null;
+    const cpm = withMpg.filter(e => e.cost != null);
+    const avgCpm = cpm.length ? cpm.reduce((s,e)=>s+e.cost,0)/cpm.length : null;
+
+    document.getElementById('gaugeNum').textContent = latest ? latest.mpg.toFixed(1) : '—';
+    document.getElementById('statAvg').textContent = avg ? avg.toFixed(1) : '—';
+    document.getElementById('statBest').textContent = best ? best.toFixed(1) : '—';
+    document.getElementById('statTotal').textContent = entries.length;
+    document.getElementById('statCpm').textContent = avgCpm ? '$' + avgCpm.toFixed(3) : '—';
+
+    const deltaEl = document.getElementById('gaugeDelta');
+    if (latest && avg) {
+      const diff = latest.mpg - avg;
+      deltaEl.textContent = (diff >= 0 ? '▲ ' : '▼ ') + Math.abs(diff).toFixed(1) + ' vs avg';
+      deltaEl.className = 'gauge-delta ' + (diff >= 0 ? 'up' : 'down');
+    } else {
+      deltaEl.textContent = '';
+    }
+
+    const lastOdo = entries.length ? entries[entries.length-1].odo : null;
+    document.getElementById('lastOdoHint').textContent = lastOdo ? `last: ${lastOdo.toLocaleString()} mi` : '';
+
+    drawGauge(latest ? latest.mpg : null, avg);
+    drawChart(u.metric);
+    drawTable(u.unitLabel);
+  }
+
+  // =========================================================
+  // Reports
+  // =========================================================
+  let reportsChart;
+  async function loadReports(){
+    const statusEl2 = document.getElementById('reportsStatus');
+    const tableHost = document.getElementById('reportsTableHost');
+    if (!fb || !fb.uid) {
+      statusEl2.textContent = 'Waiting on connection to load your report.';
+      statusEl2.className = 'status';
+      tableHost.innerHTML = '<div class="empty">Waiting on connection…</div>';
+      return;
+    }
+    if (!vehicles.length) {
+      tableHost.innerHTML = '<div class="empty">Add a vehicle first — reports need at least one.</div>';
+      return;
+    }
+    statusEl2.textContent = 'Loading…';
+    statusEl2.className = 'status';
+    try {
+      const { collection, getDocs, query, orderBy } = fb.fns;
+      const perVehicle = [];
+      const monthly = {}; 
+
+      for (const v of vehicles) {
+        const ref = collection(fb.db, 'syncGroups', fb.syncCode, 'vehicles', v.id, 'fillups');
+        const snap = await getDocs(query(ref, orderBy('odo', 'asc')));
+        const vEntries = [];
+        snap.forEach(d => vEntries.push({ id: d.id, ...d.data() }));
+        for (let i = 0; i < vEntries.length; i++) {
+          if (i === 0) { vEntries[i].mpg = null; continue; }
+          const miles = vEntries[i].odo - vEntries[i-1].odo;
+          vEntries[i].mpg = (miles > 0 && vEntries[i].gallons > 0) ? miles / vEntries[i].gallons : null;
+          vEntries[i].cost = (vEntries[i].price && vEntries[i].mpg) ? vEntries[i].price / vEntries[i].mpg : null;
+          const spend = (vEntries[i].price || 0) * (vEntries[i].gallons || 0);
+          const key = (vEntries[i].date || '').slice(0,7);
+          if (key) monthly[key] = (monthly[key] || 0) + spend;
+        }
+        const withMpg = vEntries.filter(e => e.mpg != null);
+        const totalMiles = vEntries.length ? (vEntries[vEntries.length-1].odo - vEntries[0].odo) : 0;
+        const totalSpend = vEntries.reduce((s,e) => s + ((e.price||0)*(e.gallons||0)), 0);
+        const avgMpg = withMpg.length ? withMpg.reduce((s,e)=>s+e.mpg,0)/withMpg.length : null;
+        perVehicle.push({ vehicle: v, fillups: vEntries.length, miles: totalMiles, spend: totalSpend, avgMpg });
+      }
+
+      const totalSpent = perVehicle.reduce((s,p)=>s+p.spend,0);
+      const totalMiles = perVehicle.reduce((s,p)=>s+p.miles,0);
+      const totalFillups = perVehicle.reduce((s,p)=>s+p.fillups,0);
+
+      document.getElementById('repTotalSpent').textContent = '$' + totalSpent.toFixed(2);
+      document.getElementById('repTotalMiles').textContent = totalMiles.toLocaleString();
+      document.getElementById('repTotalFillups').textContent = totalFillups;
+      document.getElementById('repVehicleCount').textContent = vehicles.length;
+
+      tableHost.innerHTML = perVehicle.map(p => `
+        <div class="rowitem">
+          <div>
+            <div class="name">${p.vehicle.name}</div>
+            <div class="meta">${p.vehicle.makeModel || fuelTypeLabel(p.vehicle.fuelType)} · ${p.fillups} fill-ups · ${p.miles.toLocaleString()} mi</div>
+          </div>
+          <div class="actions">
+            <span>${p.avgMpg != null ? p.avgMpg.toFixed(1) + ' avg' : '—'}</span>
+            <span>$${p.spend.toFixed(2)} spent</span>
+          </div>
+        </div>`).join('') || '<div class="empty">No fill-ups logged yet.</div>';
+
+      const monthKeys = Object.keys(monthly).sort();
+      if (typeof Chart !== 'undefined') {
+        try {
+          const ctx = document.getElementById('reportsChart');
+          if (reportsChart) reportsChart.destroy();
+          reportsChart = new Chart(ctx, {
+            type: 'bar',
+            data: {
+              labels: monthKeys,
+              datasets: [{
+                label: 'Spend ($)',
+                data: monthKeys.map(k => Number(monthly[k].toFixed(2))),
+                backgroundColor: 'rgba(242,167,27,0.55)',
+                borderRadius: 4
+              }]
+            },
+            options: {
+              responsive: true,
+              plugins: { legend: { display: false } },
+              scales: {
+                x: { ticks: { color: '#9199ab', font: { family: 'JetBrains Mono', size: 10 } }, grid: { display:false } },
+                y: { ticks: { color: '#9199ab', font: { family: 'JetBrains Mono', size: 10 } }, grid: { color: '#2c3140' } }
+              }
+            }
+          });
+        } catch (e) { console.warn('Reports chart skipped:', e.message); }
+      }
+
+      statusEl2.textContent = 'Updated just now.';
+      statusEl2.className = 'status ok';
+    } catch (e) {
+      statusEl2.textContent = 'Could not load report: ' + e.message;
+      statusEl2.className = 'status err';
+    }
+  }
+
+  // =========================================================
+  // Admin Module
+  // =========================================================
+  document.getElementById('adminLookupBtn').addEventListener('click', () => {
+    if (!fb || !fb.uid || !isAdmin) {
+      const statusEl3 = document.getElementById('adminStatus');
+      statusEl3.textContent = 'Admin access required.';
+      statusEl3.className = 'status err';
+      return;
+    }
+    const code = document.getElementById('adminCodeInput').value.trim().toUpperCase();
+    if (!code) return;
+    document.getElementById('adminStatus').textContent = '';
+    adminViewUser(code, code);
+  });
+
+  let adminTargetUid = null;
+  async function adminViewUser(uid, label){
+    adminTargetUid = uid;
+    document.getElementById('adminFillupsPanel').style.display = 'none';
+    const panel = document.getElementById('adminDetailPanel');
+    panel.style.display = '';
+    document.getElementById('adminDetailTitle').innerHTML = 'Vehicles — ' + label;
+    const host = document.getElementById('adminVehicleList');
+    host.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const { collection, getDocs } = fb.fns;
+      const snap = await getDocs(collection(fb.db, 'syncGroups', uid, 'vehicles'));
+      const vs = [];
+      snap.forEach(d => vs.push({ id: d.id, ...d.data() }));
+      host.innerHTML = vs.map(v => `
+        <div class="rowitem">
+          <div>
+            <div class="name">${v.name}</div>
+            <div class="meta">${v.makeModel || fuelTypeLabel(v.fuelType)}</div>
+          </div>
+          <div class="actions">
+            <span onclick="__adminViewFillups('${v.id}','${(v.name||'').replace(/'/g,"\\'")}')">Fill-ups</span>
+            <span class="del" onclick="__adminDeleteVehicle('${v.id}')">Delete</span>
+          </div>
+        </div>`).join('') || '<div class="empty">This user has no vehicles.</div>';
+    } catch (e) {
+      host.innerHTML = '<div class="empty">Could not load: ' + e.message + '</div>';
+    }
+  }
+  window.__adminViewUser = adminViewUser;
+
+  async function adminDeleteVehicle(vehicleId){
+    if (!adminTargetUid) return;
+    try {
+      const { collection, getDocs, deleteDoc, doc } = fb.fns;
+      const fuSnap = await getDocs(collection(fb.db, 'syncGroups', adminTargetUid, 'vehicles', vehicleId, 'fillups'));
+      for (const d of fuSnap.docs) {
+        await deleteDoc(doc(fb.db, 'syncGroups', adminTargetUid, 'vehicles', vehicleId, 'fillups', d.id));
+      }
+      await deleteDoc(doc(fb.db, 'syncGroups', adminTargetUid, 'vehicles', vehicleId));
+      document.getElementById('adminFillupsPanel').style.display = 'none';
+      const title = document.getElementById('adminDetailTitle').textContent;
+      adminViewUser(adminTargetUid, title.replace('Vehicles — ',''));
+    } catch (e) {
+      alert('Delete failed: ' + e.message);
+    }
+  }
+  window.__adminDeleteVehicle = adminDeleteVehicle;
+
+  let adminTargetVehicleId = null;
+  async function adminViewFillups(vehicleId, label){
+    adminTargetVehicleId = vehicleId;
+    const panel = document.getElementById('adminFillupsPanel');
+    panel.style.display = '';
+    document.getElementById('adminFillupsTitle').textContent = 'Fill-ups — ' + label;
+    const host = document.getElementById('adminFillupsList');
+    host.innerHTML = '<div class="empty">Loading…</div>';
+    try {
+      const { collection, getDocs, query, orderBy } = fb.fns;
+      const ref = collection(fb.db, 'syncGroups', adminTargetUid, 'vehicles', vehicleId, 'fillups');
+      const snap = await getDocs(query(ref, orderBy('odo', 'asc')));
+      const rows = [];
+      snap.forEach(d => rows.push({ id: d.id, ...d.data() }));
+      if (!rows.length) {
+        host.innerHTML = '<div class="empty">No fill-ups for this vehicle.</div>';
+        return;
+      }
+      host.innerHTML = `<table>
+        <thead><tr><th>Date</th><th>Odometer</th><th>Amount</th><th>Price</th><th></th></tr></thead>
+        <tbody>${rows.map(r => `
+          <tr>
+            <td>${r.date || ''}</td>
+            <td>${r.odo != null ? r.odo.toLocaleString() : ''}</td>
+            <td>${r.gallons != null ? r.gallons.toFixed(2) : '—'}</td>
+            <td>${r.price != null ? '$' + Number(r.price).toFixed(2) : '—'}</td>
+            <td class="del" onclick="__adminDeleteFillup('${r.id}')">✕</td>
+          </tr>`).join('')}</tbody>
+      </table>`;
+    } catch (e) {
+      host.innerHTML = '<div class="empty">Could not load: ' + e.message + '</div>';
+    }
+  }
+  window.__adminViewFillups = adminViewFillups;
+
+  async function adminDeleteFillup(fillupId){
+    if (!adminTargetUid || !adminTargetVehicleId) return;
+    try {
+      const { deleteDoc, doc } = fb.fns;
+      await deleteDoc(doc(fb.db, 'syncGroups', adminTargetUid, 'vehicles', adminTargetVehicleId, 'fillups', fillupId));
+      const title = document.getElementById('adminFillupsTitle').textContent;
+      adminViewFillups(adminTargetVehicleId, title.replace('Fill-ups — ',''));
+    } catch (e) {
+      alert('Delete failed: ' + e.message);
+    }
+  }
+  window.__adminDeleteFillup = adminDeleteFillup;
+
+  tryConnectFirebase();
+</script>
+</body>
+</html>
